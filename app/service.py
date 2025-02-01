@@ -8,6 +8,7 @@ from .utils import generate_passwd_hash, create_safe_url
 from .errors import (UserAlreadyExists, AdminAlreadyExists, UserNotFound, ExamIdNotFound, CenterNoNotFound, StudentAlreadyExists, StudentNotFound, CentreAlreadyExists, CentreNotFound, SubjectNotFound, SubjectAlreadyExists)
 from .config import settings
 from .mail import create_message, mail
+import uuid
 
 
 class TokenService:
@@ -49,31 +50,23 @@ class UserService:
         return result.first() if result else None
     
     async def get_user_by_uid(self, uid: str, session: AsyncSession):
-        try:
-            user = select(User).where(User.uid == uid)
+        user = select(User).where(User.uid == uid)
 
-            result = await session.exec(user)
-            return result.first() if True else None
-        except Exception as e:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error is {e}")
+        result = await session.exec(user)
+        return result.first() if result else None
 
     async def get_user_by_email(self, email: str, session: AsyncSession):
-        try:
-            user = select(User).where(User.email == email)
+        user = select(User).where(User.email == email)
 
-            result = await session.exec(user)
-            return result.first() if True else None
-        except Exception as e:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error is {e}")
+        result = await session.exec(user)
+        return result.first() if True else None
+        
     
     async def get_all_users(self, session: AsyncSession):
-        try:
-            statement = select(User).order_by(desc(User.created_at))
+        statement = select(User).order_by(desc(User.created_at))
 
-            result = await session.exec(statement)
-            return result.first() if True else None
-        except Exception as e:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error is {e}")
+        result = await session.exec(statement)
+        return result.all() if result else None
         
     async def confirm_payments(self, user_uid: str, session: AsyncSession):
         user = await self.get_user_by_uid(user_uid, session)
@@ -137,32 +130,32 @@ class UserService:
 
        
     async def update_a_user(self, user_uid: str, user_data: dict, session: AsyncSession):
+        try:
+            exam_id = user_data.get('exam_id')
+            exam_centre_no = user_data.get('exam_centre_no')
 
-        exam_id = user_data.get("exam_id")
-        centre_no = user_data.get("exam_centre_no")
+            if exam_id:
+                exam_id_check = await StudentService().get_a_student_by_exam_id(exam_id, session)
+                if exam_id_check is None:
+                    raise ExamIdNotFound()
 
-        if exam_id:
-            exam_id_check = await StudentService().get_a_student_by_exam_id(exam_id, session)
-            if exam_id_check is None:
-                raise ExamIdNotFound()
-        
-        if centre_no:
-            centre_no_check = await ExamCentreService().get_exam_centre_by_exam_centre_no(centre_no, session)
-            if centre_no_check is None:
-                raise CenterNoNotFound()
+            if exam_centre_no:
+                exam_centre_no_check = await ExamCentreService().get_exam_centre_by_exam_centre_no(exam_centre_no, session)
+                if exam_centre_no_check is None:
+                    raise CenterNoNotFound()
 
-        user_to_update = await self.get_user_by_uid(user_uid, session)
-
-        if user_to_update is not None:
-            for k, v in user_data.items():
-                setattr(user_to_update, k, v)
-            
-            await session.commit()
-
-            return user_to_update
-        else:
-            raise UserNotFound()
-
+            user_to_update = await self.get_user_by_uid(uid=user_uid, session=session)
+            if user_to_update:
+                for k, v in user_data.items():
+                    setattr(user_to_update, k, v)
+                await session.commit()
+                return user_to_update
+            else:
+                raise UserNotFound()
+        except (ExamIdNotFound, CenterNoNotFound, UserNotFound) as e: 
+            raise e  # Re-raise the exception
+        except Exception as e:
+            raise e
     
     async def delete_a_user(self, user_uid: str, session: AsyncSession):
         user_to_delete = await self.get_user_by_uid(user_uid, session)
@@ -204,6 +197,9 @@ class StudentService:
         
     async def create_a_student(self, session: AsyncSession, student_data: StudentCreateModel = Body(...)):
         student_data_dict = student_data.model_dump()
+
+        random_code = str(uuid.uuid4())[:8]
+        student_data_dict["exam_id"] = random_code
 
         exam_id_check = await UserService().get_student_by_exam_id(student_data_dict["exam_id"], session) 
         
@@ -292,7 +288,6 @@ class ExamCentreService:
             raise CentreNotFound()
         return result.first() 
 
-
     async def get_all_exam_centres(self, session: AsyncSession):
         statement = select(ExamCentre).order_by(desc(ExamCentre.created_at))
         result = await session.exec(statement)
@@ -302,7 +297,6 @@ class ExamCentreService:
         
         return result.all()
  
-
     async def get_exam_centre_by_exam_centre_uid(self, exam_centre_uid: str, session: AsyncSession):
         statement = select(ExamCentre).where(ExamCentre.uid == exam_centre_uid)
         result = await session.exec(statement)
@@ -315,6 +309,10 @@ class ExamCentreService:
 
     async def create_an_exam_centre(self, exam_centre_data: ExamCentreCreateModel, session: AsyncSession):
         exam_centre_data_dict = exam_centre_data.model_dump()
+
+        random_code = str(uuid.uuid4())[:6]
+        exam_centre_data_dict["exam_centre_no"] = random_code
+
         exam_centre_no = exam_centre_data_dict["exam_centre_no"]
 
         if await self.get_exam_centre_by_exam_centre_no(exam_centre_no, session):
@@ -370,12 +368,9 @@ class AdminService:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error is {e}")
 
     async def get_all_admins(self, session: AsyncSession):
-        try:
-            statement = select(Admin).order_by(desc(Admin.created_at))
-            result = await session.exec(statement)
-            return result.all() if result else None
-        except Exception as e:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error is {e}")
+        statement = select(Admin).order_by(desc(Admin.created_at))
+        result = await session.exec(statement)
+        return result.all() if result else None
 
     async def create_super_admin(self, background_tasks: BackgroundTasks, session: AsyncSession):
         admin_data = {
@@ -414,23 +409,38 @@ class AdminService:
             return new_admin
         raise AdminAlreadyExists()
 
-    async def create_an_admin(self, admin_data: AdminCreateModel, session: AsyncSession):
-        try:
-            admin_data_dict = admin_data.model_dump()
-            email = admin_data_dict["email"]
+    async def create_an_admin(self, background_tasks: BackgroundTasks, admin_data: AdminCreateModel, session: AsyncSession):
+        admin_data_dict = admin_data.model_dump()
+        email = admin_data_dict["email"]
 
-            if await self.get_admin_by_email(email, session):
-                raise AdminAlreadyExists()
-            
-            new_admin = Admin(**admin_data_dict)
-            new_admin.password = generate_passwd_hash(new_admin.password)
+        if await self.get_admin_by_email(email, session):
+            raise AdminAlreadyExists()
+        
+        random_code = str(uuid.uuid4())[:12]
+        admin_data_dict["password"] = random_code
 
-            session.add(new_admin)
-            await session.commit()
+        new_admin = Admin(**admin_data_dict)
+        new_admin.password = generate_passwd_hash(new_admin.password)
 
-            return new_admin
-        except Exception as e:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error is {e}")
+        html = f"""<body>
+            <h1>Welcome to Resultify</h1></br>
+            <p>Here is your Admin Login Info</p>
+            <p>Email: {new_admin.email}</p>
+            <p>Password: {new_admin.password}</p>
+        </body>"""
+
+        message = create_message(
+            recipients=[new_admin.email],
+            subject='Resultify Admin Details',
+            body=html
+        )
+
+        background_tasks.add_task(mail.send_message, message)
+
+        session.add(new_admin)
+        await session.commit()
+
+        return new_admin
 
     async def update_an_admin(self, admin_uid: str, admin_data: dict, session: AsyncSession):
         try:
@@ -457,12 +467,9 @@ class AdminService:
 
 class SubjectService:
     async def get_all_subjects(self, session: AsyncSession):
-        try:
-            statement = select(Subject).order_by(desc(Subject.created_at))
-            result = await session.exec(statement)
-            return result.all() if result else None
-        except Exception as e:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error is {e}")
+        statement = select(Subject).order_by(Subject.subject_name)
+        result = await session.exec(statement)
+        return result.all() if result else None
     
     async def get_subject_by_uid(self, uid: str, session: AsyncSession):
         statement = select(Subject).where(Subject.uid == uid)
@@ -491,8 +498,14 @@ class SubjectService:
     async def create_a_subject(self, subject_data: SubjectCreateModel, session: AsyncSession):
         subject_data_dict = subject_data.model_dump()
 
+        random_code = str(uuid.uuid4())[:6]
+        subject_data_dict["subject_code"] = random_code
+
         subject_code = subject_data_dict["subject_code"]
         subject_name = subject_data_dict["subject_name"]
+
+        if not subject_name:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Subject name is required")
 
         if await self.get_subject_by_code(subject_code, session):
             raise SubjectAlreadyExists()

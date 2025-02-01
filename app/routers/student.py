@@ -5,7 +5,7 @@ from ..db.main import get_session
 from sqlmodel.ext.asyncio.session import AsyncSession
 from ..dependencies import RoleChecker
 from..service import StudentService
-from ..schemas import StudentCreateModel
+from ..schemas import StudentCreateModel, StudentResponseModel
 
 router = APIRouter(
     prefix="/student",
@@ -22,12 +22,17 @@ async def create_student(student_data: StudentCreateModel, session: AsyncSession
     result = await student.create_a_student(session, student_data)
     return result
 
-@router.get('/all', dependencies=[role_checker])
+@router.get('/all', dependencies=[role_checker], response_model=List[StudentResponseModel])
 async def get_all_students(session: AsyncSession = Depends(get_session)):
     result = await student.get_all_students(session)
     return result
 
-@router.get('/{student_uid}', dependencies=[role_checker])
+@router.get('/exam_id/{exam_uid}', dependencies=[Depends(RoleChecker(['user', 'admin', 'super_admin']))], response_model=StudentResponseModel)
+async def get_student_by_student_uid(exam_uid: str, session: AsyncSession = Depends(get_session)):
+    result = await student.get_a_student_by_exam_id(exam_uid, session)
+    return result
+
+@router.get('/{student_uid}', dependencies=[Depends(RoleChecker(['user', 'admin', 'super_admin']))])
 async def get_student_by_student_uid(student_uid: str, session: AsyncSession = Depends(get_session)):
     result = await student.get_a_student(student_uid, session)
     return result

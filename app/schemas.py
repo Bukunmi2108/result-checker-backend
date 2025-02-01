@@ -51,9 +51,8 @@ class StudentCreateModel(BaseModel):
     first_name: str
     last_name: str
     exam_centre_no: str 
-    exam_id: str
     exam_year: int
-    result: dict
+    result: Optional[dict] = None
 
 class StudentResponseModel(BaseModel):
     first_name: str
@@ -61,7 +60,8 @@ class StudentResponseModel(BaseModel):
     exam_centre_no: str 
     exam_id: str
     exam_year: int
-    result: dict
+    result: Optional[dict] = None
+    exam_centre: Optional['ExamCentreProfileModel']
 
 # CENTRES
 
@@ -77,12 +77,15 @@ class ExamCentre(BaseModel):
     updated_at: datetime
     
 class ExamCentreCreateModel(BaseModel):
-    exam_centre_no: str
     exam_centre_name: str
     exam_centre_location: str
     exam_centre_admin: str
     exam_centre_admin_email: str
     exam_centre_admin_phone: str
+
+class ExamCentreProfileModel(BaseModel):
+    exam_centre_no: str
+    exam_centre_name: str
 
 class ExamCentreResponseModel(ExamCentre):
     students: List['StudentResponseModel']
@@ -102,7 +105,6 @@ class Admin(BaseModel):
 
 class AdminCreateModel(BaseModel):
     email: str
-    password: str = Field(exclude=True)
     first_name: str
     last_name: str
     phone_number: str
@@ -144,10 +146,13 @@ class Subject(BaseModel):
     updated_at: datetime
 
 class SubjectCreateModel(BaseModel):
-    subject_code: str
     subject_name: str
 
-class SubjectResponseModel(SubjectCreateModel):
+class SubjectResModel(BaseModel):
+    subject_name: str
+    subject_code: str
+
+class SubjectResponseModel(SubjectResModel):
     uid: uuid.UUID
 
 # RESULT DATA

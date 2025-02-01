@@ -25,6 +25,11 @@ role_checker = Depends(RoleChecker(['user']))
 revoked_token_check = Depends(check_revoked_token)
 
 
+@router.put('/update', dependencies=[role_checker, revoked_token_check])
+async def update_user_profile(user_data: dict = Body(...), current_user = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    result = await user.update_a_user(current_user.uid, user_data, session)
+    return result
+
 ############################################
 @router.post('/send_mail')
 async def send_mail(emails:EmailModel):
@@ -76,7 +81,8 @@ async def login_user(login_data: UserLoginModel = Body(...), session: AsyncSessi
                     "refresh_token": refresh_token,
                     "user": {
                         "email": existing_user.email,
-                        'uid': str(existing_user.uid)
+                        'uid': str(existing_user.uid),
+                        'role': existing_user.role,
                     }
                 }
             )
@@ -95,11 +101,6 @@ async def confirm_payment(current_user = Depends(get_current_user), session: Asy
 @router.post('/request_student_approval', dependencies=[role_checker, revoked_token_check])
 async def request_student_approval(current_user = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     result = await user.request_approval( current_user.uid, current_user.exam_id, session)
-    return result
-
-@router.put('/update_user', dependencies=[role_checker, revoked_token_check], response_model=UserResponseModel)
-async def update_user_profile(user_data: dict = Body(...), current_user = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
-    result = await user.update_a_user(current_user.uid, user_data, session)
     return result
 
 @router.get('/get_student_result', dependencies=[role_checker, revoked_token_check])

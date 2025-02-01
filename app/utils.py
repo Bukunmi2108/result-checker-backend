@@ -44,8 +44,7 @@ def decode_token(token:str):
         )
 
         return token_data
-    except jwt.PyJWKError as e:
-        logging.exception(e)
+    except Exception as e:
         return None
 
 def create_safe_url(user_uid: str, email: str) -> str:
